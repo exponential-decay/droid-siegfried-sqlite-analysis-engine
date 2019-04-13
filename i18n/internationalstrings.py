@@ -463,12 +463,12 @@ class AnalysisStringsEN:
     HEADING_BLACKLIST_EXTS = "Blacklist Filename Extensions found in Accession/Extract"
     HEADING_BLACKLIST_DIRS = "Blacklist Directory Names found in Accession/Extract"
     HEADING_BLACKLIST_FILENAMES = "Blacklist Filenames found in Accession/Extract"
-    HEADING_DESC_BLACKLIST = """Lists objects which are considered undesirable inside an accession/extract. 
+    HEADING_DESC_BLACKLIST = """Lists objects which are considered undesirable inside an accession/extract.
                                The blacklist is entirely configurable by user and may contain files that can be
                                identified as undesirable, e.g. system files; or file names that may need pre-conditioning
                                e.g. with the title 'Untitled Document'. Filename and directory searches are greedy and will
                                look for instances of the strings specified in the blacklist within filename and directory
-                               strings using a wildcard search. IDs e.g. PUID identifiers, and filename extension searches 
+                               strings using a wildcard search. IDs e.g. PUID identifiers, and filename extension searches
                                are understandably more precise."""
 
     TEXT_ONLY_FIVE_TOP_PUIDS = "Five Top PUIDs in Accession/Extract"
@@ -482,7 +482,7 @@ class AnalysisStringsEN:
     COLUMN_HEADER_VALUES_YEAR = "Volume"
 
     FNAME_CHECK_ASCII = "contains, characters outside of ASCII range"
-    FNAME_CHECK_PERIOD = "has a period ('.') as its last character"
+    FNAME_CHECK_PERIOD = "has a period '.' as its last character"
     FNAME_CHECK_NOT_RECOMMENDED = "contains, non-recommended character"
     FNAME_CHECK_NON_PRINT = "contains, non-printable character"
     FNAME_CHECK_RESERVED = "contains, reserved name"

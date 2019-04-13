@@ -1,124 +1,240 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+#
+# MsoftFnameAnalysis
+#
 # based on: http://msdn.microsoft.com/en-us/library/aa365247(VS.85).aspx
-
+#
+# Module that implements checks against the Microsoft Recommendations for
+# file naming.
+#
+#
+from __future__ import print_function, unicode_literals
+import os
 import sys
-sys.path.append(r'cooperhewitt/unicode/')
-import names
-sys.path.append(r'i18n/')
+
+try:
+    import names
+except ModuleNotFoundError:
+    from . import names
+
+sys.path.append(r"i18n/")
 from internationalstrings import AnalysisStringsEN as IN_EN
 
-class MsoftFnameAnalysis:
 
-   report = ''
+class MsoftFnameAnalysis(object):
+    """Filename analysis class."""
 
-   def __init__(self):
-      self.STRINGS = IN_EN
+    report = ""
 
-   #Note: verbose default false because of potential no. characters in a collection
-   def completeFnameAnalysis(self, s, folders=False, verbose=False):
-      #need to ensure argument is interpreted correctly as UNICODE on way in
-      #without explicit decode we have str type
-      s = s.decode('utf8')
-  
-      self.report= u""
-      self.verbose = verbose
-      
-      self.detectNonAsciiCharacters(s, folders)
-      self.detectNonRecommendedCharacters(s, folders)
-      self.detectNonPrintableCharacters(s, folders)
-      self.detectMsoftReservedNames(s, folders)
-      self.detectSpaceAtEndOfName(s, folders)
-      self.detectPeriodAtEndOfName(s, folders)
-      return self.report
+    def __init__(self):
+        """Class initialization."""
+        self.STRINGS = IN_EN
 
-   def reportIssue(self, s, msg, value='', folders=False):
-      if folders == True:
-         text = 'Directory: '
-      else:
-         text = 'File: '
-      self.report = self.report + text + s + " " + msg + " " + value + "\n"
+    def _clear_report(self):
+        self.report = ""
 
-   def unicodename(self, c):
-      ref = names.lookup()
-      name = ref.name(c)
-      return "%s: %s" % (name, c)
+    def complete_file_name_analysis(self, string, folders=False, verbose=False):
+        """Primary code to call to run all checks over our string."""
+        self._clear_report()
+        self.verbose = verbose
+        self.detect_non_ascii_characters(string, folders)
+        self.detect_non_recommended_characters(string, folders)
+        self.detect_non_printable_characters(string)
+        self.detect_microsoft_reserved_names(string)
+        self.detect_spaces_at_end_of_names(string, folders)
+        self.detect_period_at_end_of_name(string, folders)
+        return self.report
 
-   def detectNonAsciiCharacters(self, s, folders=False):
-      #Nicer method: all(ord(c) < 128 for c in s)
-      nonascii = False
-      for c in s:
-         if ord(c) > 128:
-            nonascii = True
-            if nonascii == True:
-               self.reportIssue(s, self.STRINGS.FNAME_CHECK_ASCII + ":", hex(ord(c)) + ", " + self.unicodename(c), folders)
-               nonascii == False
-            if self.verbose == False:
-               break
+    def report_issue(self, string, message, value, folders=False):
+        """Helper to build our report to return to the caller."""
+        text = "File"
+        if folders:
+            text = "Directory"
+        if not value:
+            self.report = "{}{}: '{}' {}\n".format(self.report, text, string, message)
+            return
+        self.report = "{}{}: '{}' {} '{}'\n".format(
+            self.report, text, string, message, value
+        )
 
-   def detectNonRecommendedCharacters(self, s, folders=False):
-      charlist = ['<','>',':','"','/','\\','?','*','|', ']', '[']
-      if folders==True:
-         charlist = ['<','>','"','?','*','|', ']', '[']
-         
-      for c in s:
-         if c in charlist:
-            self.reportIssue(s, self.STRINGS.FNAME_CHECK_NOT_RECOMMENDED + ":", hex(ord(c)) + ", " + self.unicodename(c), folders)
-            if self.verbose == False:
-               break
+    @staticmethod
+    def unicodename(char):
+        """Return a Unicode name for the character we want to return
+        information about.
+        """
+        try:
+            name = names.Lookup().name(char)
+            return "%s: %s" % (name, char)
+        except TypeError:
+            if char >= 0 and char <= 31:
+                return "<control character>"
+            return "non-specified error"
 
-   def detectNonPrintableCharacters(self, s, folders=False):
-      for c in range(0x1f):
-         if chr(c) in s:
-            self.reportIssue(s, self.STRINGS.FNAME_CHECK_NON_PRINT + ":", hex(c) + ", " + self.unicodename(c), folders)
-            if self.verbose == False:
-               break
+    def detect_non_ascii_characters(self, string, folders=False):
+        """Detect characters outside the standard range of ASCII here."""
+        match = any(ord(char) > 128 for char in string)
+        if match:
+            for char in string:
+                if ord(char) > 128:
+                    self.report_issue(
+                        string=string,
+                        message="{}:".format(self.STRINGS.FNAME_CHECK_ASCII),
+                        value="{}, {}".format(hex(ord(char)), self.unicodename(char)),
+                        folders=folders,
+                    )
+                if not self.verbose:
+                    break
 
-   def detectMsoftReservedNames(self, s, folders=False):
-      badnames = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', \
-                     'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9', \
-                        'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', \
-                           'LPT6', 'LPT7', 'LPT8', 'LPT9']
-            
-      for c in badnames:
-         if c.lower() in s[0:len(c)].lower():
-            problem = True
-            try:
-               if s[len(c)] == '.':					#zero-based index
-                  problem = True
-               else:
-                  problem = False
-            except IndexError:
-               problem = True
-            if problem == True:
-               self.reportIssue(s, self.STRINGS.FNAME_CHECK_RESERVED + ": ", c, folders)
+    def detect_non_recommended_characters(self, string, folders=False):
+        """Detect characters that are not particularly recommended here."""
+        charlist = ["<", ">", '"', "?", "*", "|", "]", "["]
+        if not folders:
+            charlist = charlist + [":", "/", "\\"]
+        for char in string:
+            if char in charlist:
+                self.report_issue(
+                    string=string,
+                    message="{}:".format(self.STRINGS.FNAME_CHECK_NOT_RECOMMENDED),
+                    value=("{}, {}".format(hex(ord(char)), self.unicodename(char))),
+                    folders=folders,
+                )
+                if not self.verbose:
+                    break
 
-   def detectSpaceAtEndOfName(self, s, folders=False):
-      if s.endswith(' '):
-         self.reportIssue(s, self.STRINGS.FNAME_CHECK_SPACE + ".", folders)
-         
-   def detectPeriodAtEndOfName(self, s, folders):		
-      if s.endswith('.'):
-         self.reportIssue(s, self.STRINGS.FNAME_CHECK_PERIOD + ".", folders=False)
-      
-   def __detect_invalid_characters_test__(self):
-      #Strings for unit tests
-      test_strings = ['COM4', 'COM4.txt', '.com4', 'abcCOM4text', 'abc.com4.txt.abc', 'con', 'CON', 'consumer', 'space ', 'preiod.', 'ף', 'י', 'צ', 'ףיצ', 'file[bracket]one.txt', 'file[two.txt', 'filethree].txt', '-=_|\"', '(<|>|:|"|/|\\|\?|\*|\||\x00-\x1f)']	
-   
-      # First test, all ASCII characters?
-      for s in test_strings:
-         self.detect_invalid_characters(s)
+    def detect_non_printable_characters(self, string, folders=False):
+        """Detect characters below 0x20 in the ascii table that cannot be
+        printed.
+        """
+        for char in range(0x20):
+            if chr(char) in string:
+                self.report_issue(
+                    string=string,
+                    message="{}:".format(self.STRINGS.FNAME_CHECK_NON_PRINT),
+                    value="{}, {}".format(hex(char), self.unicodename(char)),
+                    folders=folders,
+                )
+                if not self.verbose:
+                    break
+
+    def detect_microsoft_reserved_names(self, string):
+        """Detect names that are considered difficult on Microsoft file
+        systems.
+        """
+        microsoft_reserved_names = [
+            "CON",
+            "PRN",
+            "AUX",
+            "NUL",
+            "COM1",
+            "COM2",
+            "COM3",
+            "COM4",
+            "COM5",
+            "COM6",
+            "COM7",
+            "COM8",
+            "COM9",
+            "LPT1",
+            "LPT2",
+            "LPT3",
+            "LPT4",
+            "LPT5",
+            "LPT6",
+            "LPT7",
+            "LPT8",
+            "LPT9",
+        ]
+        for reserved in microsoft_reserved_names:
+            if reserved in string[0 : len(reserved)]:
+                problem = True
+                # If the reserved name is followed by an extension that's still
+                # a bad idea.
+                try:
+                    if string[len(reserved)] == ".":
+                        problem = True
+                except IndexError:
+                    # This is an exact reserved name match.
+                    problem = True
+                if problem:
+                    self.report_issue(
+                        string=string,
+                        message=self.STRINGS.FNAME_CHECK_RESERVED,
+                        value=reserved,
+                    )
+
+    def detect_spaces_at_end_of_names(self, string, folders=False):
+        """Detect spaces at the end of a name."""
+        if string.endswith(" "):
+            self.report_issue(
+                string=string,
+                message=self.STRINGS.FNAME_CHECK_SPACE,
+                value=None,
+                folders=folders,
+            )
+
+    def detect_period_at_end_of_name(self, string, folders=False):
+        """Detect a full-stop at the end of a name."""
+        if string.endswith("."):
+            self.report_issue(
+                string=string,
+                message=self.STRINGS.FNAME_CHECK_PERIOD,
+                value=None,
+                folders=folders,
+            )
+
+    def __detect_invalid_characters_test__(self):
+        """Function to help with testing until there are unit tests."""
+        test_strings = [
+            "COM4",
+            "COM4.txt",
+            ".com4",
+            "abcCOM4text",
+            "AUX",
+            "aux",
+            "abc.com4.txt.abc",
+            "con",
+            "CON",
+            "consumer",
+            "space ",
+            "period.",
+            "\u00F3",
+            "\u00E9",
+            "\u00F6",
+            "\u00F3\u00E9\u00F6",
+            "file[bracket]one.txt",
+            "file[two.txt",
+            "filethree].txt",
+            '-=_|"',
+            '(<>:"/\\?*|\x00-\x1f)',
+        ]
+        for string in test_strings:
+            report = self.complete_file_name_analysis(
+                string, folders=False, verbose=True
+            )
+            if report:
+                print(report.strip())
+
 
 def main():
-   
-   import sys
+    """Primary entry-point for this script."""
+    cmd = " ".join(sys.argv[1:])
+    try:
+        cmd = cmd.decode("utf-8")
+    except AttributeError:
+        pass
+    if "test" in cmd.lower() and not os.path.isfile(cmd):
+        print(
+            "Running non-file test mode only, please use a string without 'test' in it.",
+            file=sys.stderr,
+        )
+        MsoftFnameAnalysis().__detect_invalid_characters_test__()
+    analysis = MsoftFnameAnalysis().complete_file_name_analysis(
+        cmd, folders=False, verbose=True
+    )
+    if analysis:
+        print(analysis.strip(), file=sys.stdout)
 
-   input = sys.argv[1:]
-   input = " ".join(input)
-
-   input = input.decode('utf-8')
-
-   analysis = MsoftFnameAnalysis().completeFnameAnalysis(input, True)
-   sys.stdout.write(analysis)
 
 if __name__ == "__main__":
-   main()
+    main()
